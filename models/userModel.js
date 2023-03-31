@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const validator = require('validator');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const userSchema = new mongoose.Schema({
     name: {
@@ -16,6 +17,11 @@ const userSchema = new mongoose.Schema({
     },
     photo: {
         type: String,
+    },
+    role: {
+        type: String,
+        enum: ['user' , 'guide' , 'lead-guide' , 'admin'],
+        default: 'user',
     },
     password: {
         type: String,
@@ -34,9 +40,14 @@ const userSchema = new mongoose.Schema({
             message: 'Passwords are not the same',
         }
     },
-    passwordChangedAt: {
-        type: Date,
-    },
+    passwordChangedAt: Date,
+    passwordResetToken: String,
+    passwordResetExpires: Date,
+    active: {
+        type: Boolean,
+        default: true,
+        select: false,
+    }
 });
 
 
@@ -48,6 +59,21 @@ userSchema.pre('save' , async function(next) {
 
     this.password = await bcrypt.hash(this.password , 12);
     this.passwordConfirm = undefined; // *Delete passwordConfirm and do not save it in DB
+    next();
+});
+
+
+userSchema.pre('save' , function (next){
+    // *If the password isnt modified || if its the new document do not do anything
+    if(!this.isModified('password') || this.isNew) return next();
+    // *Sometimes DB save operations are slow (token is created but data is not yet saved in the DB)
+    this.passwordChangedAt = Date.now() - 1000;
+    next();
+});
+
+// *Query Middleware: this points to current Query
+userSchema.pre(/^find/ , function(next) {
+    this.find({active: { $ne: false}});
     next();
 });
 
@@ -69,6 +95,14 @@ userSchema.methods.changedPasswordAfter = function(JWTTimestamp) {
     }
     // *False means not changed
     return false;
+};
+
+userSchema.methods.createPasswordResetToken = function() {
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    this.passwordResetToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    this.passwordResetExpires = Date.now() + 10 * 60 * 1000; // & 10 Minutes from now
+    // *Store encrypted token in DB and send plain token via email [For Security Purposes]
+    return resetToken;
 };
 
 

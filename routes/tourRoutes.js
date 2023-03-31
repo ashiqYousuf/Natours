@@ -16,12 +16,15 @@ router.route('/monthly-plan/:year').get(tourController.getMonthlyPlan);
 
 
 router.route('/')
+// ^Protect your route
 .get(authController.protect , tourController.getAllTours)
 .post(tourController.createTour);
+
 
 router.route('/:id')
 .get(tourController.getTour)
 .patch(tourController.updateTour)
-.delete(tourController.deleteTour);
+// ^Protect your route (Authentication) and restrict certain activities to admin and lead-guide users only (Authorization)
+.delete(authController.protect , authController.restrictTo('admin' , 'lead-guide') , tourController.deleteTour);
 
 module.exports = router;

@@ -2,7 +2,8 @@ const User = require('./../models/userModel');
 const jwt = require('jsonwebtoken');
 const AppError = require('./../utils/appError');
 const { promisify } = require('util');
-
+const sendEmail = require('./../utils/email');
+const crypto = require('crypto');
 
 const signToken = (id) => {
     return jwt.sign({ id: id } , process.env.JWT_SECRET , {
@@ -18,7 +19,7 @@ exports.signup = async (req , res , next) => {
             email: req.body.email,
             password: req.body.password,
             passwordConfirm: req.body.passwordConfirm,
-            passwordChangedAt: req.body.passwordChangedAt
+            // passwordChangedAt: req.body.passwordChangedAt
         });
         // *Login the new Signed User automatically after signup is complete
         const token = signToken(newUser._id);
@@ -87,7 +88,7 @@ exports.protect = async (req , res ,next) => {
         if(currentUser.changedPasswordAfter(decoded.iat)) {
             return next(new AppError('User recently changed password! Please login again.' , 401));
         }
-        // *5 Grant access to the protected route
+        // *^ Grant access to the protected route and store user in the req object to be used in further middlewares (for Authorization or other purposes)
         req.user = currentUser;
         next();
     }catch(err){
@@ -97,3 +98,120 @@ exports.protect = async (req , res ,next) => {
         });
     }
 };
+
+
+exports.restrictTo = (...roles) => {
+    // *We can't directly pass args to the middleware functions , to do so we need a wrapper func returing a middleware func
+    return (req , res , next) => {
+        // roles: ['admin' ,'lead-guide']
+        if(!roles.includes(req.user.role)) {
+            return next(new AppError('You are not authorized to delete a tour' , 403));
+        }
+        next();
+    }
+};
+
+
+
+exports.forgotPassword = async (req , res , next) => {
+    try{
+        // ^ Get user on Email
+        const user = await User.findOne({email: req.body.email});
+        if(!user) {
+            return next(new AppError('Please provide a valid email address' , 404));
+        }
+        // ^ Generate a Random Token
+        const resetToken = user.createPasswordResetToken();
+        // *IMP: Deactivate all Schema validators before saving a User
+        await user.save({ validateBeforeSave: false});
+        // ^ Send it to user's email
+        const resetURL = `${req.protocol}://${req.get('host')}/api/v1/users/resetPassword/${resetToken}`;
+        const message = `To reset your password please click the link sent to your email address ${resetURL}\n.If you did'nt requested for password reset please ignore the message.`;
+
+        try{
+            await sendEmail({
+                email: req.body.email, // & OR user.email
+                subject: 'Reset your password',
+                message: message,
+            });
+        } catch(err) {
+            // *Reset both token and expires property
+            console.log(err);
+            user.createPasswordResetToken = undefined;
+            user.createPasswordResetExpires = undefined;
+            await user.save({ validateBeforeSave: false });
+            return next(new AppError('There was an error while sending email.Please try again',500));
+        }
+        res.status(200).json({
+            status: 'success',
+            message: 'Password reset link has been sent to your email address',
+        });
+    } catch(err) {
+        console.log(err.message)
+        res.status(400).json({
+            status: 'fail',
+            message: err,
+        });
+    }
+};
+
+exports.resetPassword = async (req , res , next) => {
+    try{
+        // ^Get user based on the token (Encrypt the token first as we have stored encrypted token in the DB)
+        const hashedToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
+        const user = await User.findOne({ passwordResetToken: hashedToken , passwordResetExpires: { $gt: Date.now() } });
+        // ^If the token has not expired and user is there then set new password
+        if(!user) {
+            return next(new AppError('Invalid or expired token' , 400));
+        }
+        // ^Update passwordChangeAt property for the user
+        user.password = req.body.password;
+        user.passwordConfirm = req.body.passwordConfirm;
+        user.passwordResetToken = undefined;
+        user.passwordResetExpires = undefined;
+        await user.save();
+        // ^Log the user in , send JWT to the client
+        const token = signToken(user._id);
+        res.status(200).json({
+            status: 'success',
+            token,
+        });
+    } catch(err){
+        res.status(400).json({
+            status: 'fail',
+            message: err,
+        });
+    }
+};
+
+
+exports.updatePassword = async (req , res , next) =>{
+    try{
+        // ^ Get the user from collection
+        const user = await User.findById(req.user._id).select('+password');        
+        // ^ Check if the posted password is correct
+        if(! (await user.correctPassword(req.body.passwordCurrent , user.password))){
+            return next(new AppError('Your entered a wrong password!' , 401));
+        }
+        // ^ Update the password
+        // * not use User.findByIdAndUpdate(...) as validators wont work as they are critical for passwords validation
+        user.password = req.body.password;
+        user.passwordConfirm = req.body.passwordConfirm;
+        await user.save(); 
+        // ^ Log the user In , send JWT to the user(client)
+        const token = signToken(user._id);
+        res.status(200).json({
+            status: 'success',
+            token,
+            data: {
+                user
+            }
+        });
+    }catch(err){
+        res.status(400).json({
+            status: 'fail',
+            message: err,
+        });
+    }
+};
+

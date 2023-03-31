@@ -6,8 +6,17 @@ const router = express.Router();
 
 // *No REST pattern (Intutive)
 
+// *NOTE authController.protect will check if the User is Authenticated , if so it'll put the user on the request object
+
 router.post('/signup' , authController.signup);
 router.post('/login' , authController.login);
+
+router.post('/forgotPassword' , authController.forgotPassword);
+router.patch('/resetPassword/:token' , authController.resetPassword);
+router.patch('/updatePassword' , authController.protect , authController.updatePassword);
+
+router.patch('/updateMe' , authController.protect , userController.updateMe);
+router.delete('/deleteMe' , authController.protect , userController.deleteMe);
 
 // ^Follows REST design
 
