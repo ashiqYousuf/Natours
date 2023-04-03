@@ -2,7 +2,6 @@ const User = require('./../models/userModel');
 const catchAsync = require('./../utils/catchAsync');
 const AppError = require('./../utils/appError');
 
-// & Object.keys(obj) returns array of keys in the obj
 
 const filterObj = (obj , ...allowedFields) => {
     let newObj = {};
@@ -35,15 +34,12 @@ exports.getAllUsers = async (req , res , next) => {
     }
 };
 
-// *Authenticated User is updating His Profile
 
 exports.updateMe = async (req , res , next) => {
     try{
-        // *Create Error if user posts password data
         if(req.body.password || req.body.passwordConfirm) {
             return next(new AppError('You can not update your password here' , 400));
         }
-        // *Update User document don't use save() method as it'll run password validators which are not required here
         const filteredBody = filterObj(req.body , 'name' , 'email');
         const updatedUser = await User.findByIdAndUpdate(req.user._id , filteredBody , {
             new: true,
@@ -77,7 +73,7 @@ exports.deleteMe = async (req , res , next) => {
             message: err,
         });
     }
-}
+};
 
 
 exports.createUser = (req , res) => {

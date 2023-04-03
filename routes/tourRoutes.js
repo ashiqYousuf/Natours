@@ -25,6 +25,6 @@ router.route('/:id')
 .get(tourController.getTour)
 .patch(tourController.updateTour)
 // ^Protect your route (Authentication) and restrict certain activities to admin and lead-guide users only (Authorization)
-.delete(authController.protect , authController.restrictTo('admin' , 'lead-guide') , tourController.deleteTour);
+.delete(authController.protect , authController.restrictTo('admin' , 'lead-guide' , 'guide') , tourController.deleteTour);
 
 module.exports = router;

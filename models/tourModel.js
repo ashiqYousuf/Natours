@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 const slugify = require('slugify');
-const validator = require('validator');
 
 // *Creating Database Scheme
 
@@ -76,7 +75,36 @@ const tourSchema = new mongoose.Schema({
     secretTour: {
         type: Boolean,
         default: false,
-    }
+    },
+    startLocation: {
+        type: {
+            type: String,
+            default: 'Point',
+            enum: ['Point'],
+        },
+        coordinates: [Number],
+        address: String,
+        description: String,
+    },
+    locations: [
+        {
+            type: {
+                type: String,
+                default: 'Point',
+                enum: ['Point'],
+            },
+            coordinates: [Number],
+            address: String,
+            description: String,
+            day: Number,
+        }
+    ],
+    guides: [
+        {
+            type: mongoose.Schema.ObjectId,
+            ref: 'User'
+        }
+    ],
 } , {
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
@@ -95,11 +123,6 @@ tourSchema.pre('save' , function(next) {
     next();
 });
 
-tourSchema.pre('save' , function(next){
-    next();
-});
-
-
 tourSchema.post('save' , function(doc , next) {
     next();
 });
@@ -111,7 +134,13 @@ tourSchema.pre(/^find/ , function(next) {
     next();
 });
 
-tourSchema.post(/^find/ , function(docs , next) {
+// * this points to the Current Query invoke populate() method on this Query
+
+tourSchema.pre(/^find/ , function(next) {
+    this.populate({
+        path: 'guides',
+        select: '-__v -passwordChangedAt'
+    });
     next();
 });
 

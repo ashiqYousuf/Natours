@@ -4,9 +4,8 @@ const authController = require('./../controllers/authController');
 
 const router = express.Router();
 
-// *No REST pattern (Intutive)
+// ^ AUTH ROUTES
 
-// *NOTE authController.protect will check if the User is Authenticated , if so it'll put the user on the request object
 
 router.post('/signup' , authController.signup);
 router.post('/login' , authController.login);
@@ -18,7 +17,7 @@ router.patch('/updatePassword' , authController.protect , authController.updateP
 router.patch('/updateMe' , authController.protect , userController.updateMe);
 router.delete('/deleteMe' , authController.protect , userController.deleteMe);
 
-// ^Follows REST design
+// ^ Follows REST design
 
 router.route('/')
 .get(userController.getAllUsers)
