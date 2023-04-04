@@ -1,6 +1,7 @@
 const User = require('./../models/userModel');
 const catchAsync = require('./../utils/catchAsync');
 const AppError = require('./../utils/appError');
+const factory = require('./handlerFactory');
 
 
 const filterObj = (obj , ...allowedFields) => {
@@ -16,24 +17,7 @@ const filterObj = (obj , ...allowedFields) => {
 
 // *USER ROUTE HANDLERS
 
-exports.getAllUsers = async (req , res , next) => {
-    try{
-        const users = await User.find();
-        res.status(404).json({
-            status: "success",
-            results: users.length,
-            data: {
-                users,
-            }
-        });
-    } catch(err) {
-        res.status(400).json({
-            status: 'fail',
-            message: err,
-        });
-    }
-};
-
+exports.getAllUsers = factory.getAll(User);
 
 exports.updateMe = async (req , res , next) => {
     try{
@@ -60,6 +44,11 @@ exports.updateMe = async (req , res , next) => {
 };
 
 
+exports.getMe = (req , res , next) => {
+    req.params.id = req.user._id;
+    next();
+};
+
 exports.deleteMe = async (req , res , next) => {
     try{
         await User.findByIdAndUpdate(req.user._id , {active: false});
@@ -76,30 +65,16 @@ exports.deleteMe = async (req , res , next) => {
 };
 
 
+// * BELOW ARE USER METHODS FOR ADMIN PURPOSE ONLY
+
 exports.createUser = (req , res) => {
     res.status(404).json({
         status: "fail",
-        message: "This route is yet to be defined"
+        message: "Please go to the SIGNUP route instead"
     });
 };
 
-exports.getUser = (req , res) => {
-    res.status(404).json({
-        status: "fail",
-        message: "This route is yet to be defined"
-    });
-};
-
-exports.updateUser = (req , res) => {
-    res.status(404).json({
-        status: "fail",
-        message: "This route is yet to be defined"
-    });
-};
-
-exports.deleteUser = (req , res) => {
-    res.status(404).json({
-        status: "fail",
-        message: "This route is yet to be defined"
-    });
-};
+exports.getUser = factory.getOne(User);
+// * Do not update passwords with this
+exports.updateUser = factory.updateOne(User);
+exports.deleteUser = factory.deleteOne(User);
